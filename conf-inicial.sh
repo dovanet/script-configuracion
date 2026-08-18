@@ -1186,10 +1186,29 @@ echo "Instalando Winbox..."
 WINBOX_USUARIO=$(logname)
 WINBOX_DIR="/home/$WINBOX_USUARIO/.winbox"
 mkdir -p "$WINBOX_DIR"
-if [ ! -f "$WINBOX_DIR/winbox64.exe" ]; then
-    wget -q -O "$WINBOX_DIR/winbox64.exe" "https://mt.lv/winbox64"
+
+# Si el archivo ya existe pero no es un .exe válido (descarga rota de una corrida anterior), lo borramos
+if [ -f "$WINBOX_DIR/winbox64.exe" ] && ! file "$WINBOX_DIR/winbox64.exe" | grep -q "PE32"; then
+    echo "⚠ El winbox64.exe existente no es un ejecutable válido, se vuelve a descargar..."
+    rm -f "$WINBOX_DIR/winbox64.exe"
 fi
-if [ -f "$WINBOX_DIR/winbox64.exe" ]; then
+
+if [ ! -f "$WINBOX_DIR/winbox64.exe" ]; then
+    # El acortador mt.lv a veces no sirve el binario directo sin cabeceras de navegador; usamos User-Agent explícito
+    wget -q --user-agent="Mozilla/5.0 (X11; Linux x86_64)" -O "$WINBOX_DIR/winbox64.exe" "https://mt.lv/winbox64"
+
+    # Validar que lo descargado sea un ejecutable real (PE32), no una página HTML de error
+    if [ -f "$WINBOX_DIR/winbox64.exe" ] && ! file "$WINBOX_DIR/winbox64.exe" | grep -q "PE32"; then
+        echo "⚠ La descarga desde mt.lv no es válida, buscando el link directo en mikrotik.com..."
+        rm -f "$WINBOX_DIR/winbox64.exe"
+        WINBOX_REAL_URL=$(wget -qO- --user-agent="Mozilla/5.0 (X11; Linux x86_64)" "https://mikrotik.com/download" | grep -oE 'https://download\.mikrotik\.com/routeros/winbox/[^"]*winbox64\.exe' | head -n 1)
+        if [ -n "$WINBOX_REAL_URL" ]; then
+            wget -q --user-agent="Mozilla/5.0 (X11; Linux x86_64)" -O "$WINBOX_DIR/winbox64.exe" "$WINBOX_REAL_URL"
+        fi
+    fi
+fi
+
+if [ -f "$WINBOX_DIR/winbox64.exe" ] && file "$WINBOX_DIR/winbox64.exe" | grep -q "PE32"; then
     chown -R $WINBOX_USUARIO:$WINBOX_USUARIO "$WINBOX_DIR"
     echo "✓ Winbox descargado (se ejecuta con Wine)"
 
