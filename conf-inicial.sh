@@ -252,6 +252,12 @@ configurar_gnome() {
     ejecutar_como_usuario "gsettings set org.gnome.desktop.screensaver lock-delay 0"
     ejecutar_como_usuario "gsettings set org.gnome.desktop.screensaver idle-activation-enabled true"
 
+    # Desactivar suspensión automática por inactividad (solo se bloquea la pantalla, no se suspende)
+    ejecutar_como_usuario "gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'"
+    ejecutar_como_usuario "gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-type 'nothing'"
+    ejecutar_como_usuario "gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-timeout 0"
+    ejecutar_como_usuario "gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-battery-timeout 0"
+
     ejecutar_como_usuario "gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark'"
     ejecutar_como_usuario "gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'"
     ejecutar_como_usuario "gsettings set org.gnome.desktop.wm.preferences button-layout 'appmenu:minimize,maximize,close'"
@@ -543,7 +549,13 @@ EOF
     # Dar permisos
     chmod +x "$ESCRITORIO_DIR/"*.desktop
     chown $usuario:$usuario "$ESCRITORIO_DIR/"*.desktop
-    
+
+    # Marcar los lanzadores como confiables (Nautilus/GNOME los bloquea si no)
+    echo "Marcando lanzadores como confiables..."
+    for f in "$ESCRITORIO_DIR/"*.desktop; do
+        ejecutar_como_usuario "gio set '$f' metadata::trusted true" || true
+    done
+
     # 6. ACTIVAR EXTENSIÓN - MÉTODO DIRECTO
     echo "Activando extensión de iconos..."
     ejecutar_como_usuario "gnome-extensions enable desktop-icons@csoriano" || true
@@ -1036,9 +1048,25 @@ check_success "Sistema de impresión"
 
 # 13. Brave Browser
 echo "Instalando Brave Browser..."
-apt install -y curl
-curl -fsS https://dl.brave.com/install.sh | sh
-check_success "Brave Browser"
+apt install -y curl gnupg
+if which brave-browser >/dev/null 2>&1; then
+    echo "✓ Brave Browser ya estaba instalado"
+else
+    curl -fsS https://dl.brave.com/install.sh | sh
+    if [ $? -ne 0 ]; then
+        echo "⚠ El instalador de Brave devolvió error, reintentando repositorio manualmente..."
+        curl -fsS https://api.brave.com/signing-key.asc | gpg --dearmor -o /usr/share/keyrings/brave-browser-archive-keyring.gpg
+        echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main" | tee /etc/apt/sources.list.d/brave-browser-release.list
+        apt update
+        apt install -y brave-browser
+    fi
+
+    if which brave-browser >/dev/null 2>&1; then
+        echo "✓ Brave Browser instalado correctamente"
+    else
+        echo "❌ Brave Browser - FALLÓ LA INSTALACIÓN (revisar conexión a internet o el repositorio manualmente)"
+    fi
+fi
 
 # 14. Winbox (vía Wine, no tiene versión nativa para Linux)
 echo "Instalando Winbox..."
@@ -1051,6 +1079,11 @@ fi
 if [ -f "$WINBOX_DIR/winbox64.exe" ]; then
     chown -R $WINBOX_USUARIO:$WINBOX_USUARIO "$WINBOX_DIR"
     echo "✓ Winbox descargado (se ejecuta con Wine)"
+
+    # Inicializar el prefix de Wine para que no quede colgado configurando en el primer uso
+    echo "Inicializando entorno Wine para el usuario..."
+    sudo -u "$WINBOX_USUARIO" WINEARCH=win64 WINEPREFIX="/home/$WINBOX_USUARIO/.wine" wineboot --init >/dev/null 2>&1
+    echo "✓ Entorno Wine inicializado"
 else
     echo "⚠ No se pudo descargar Winbox"
 fi
