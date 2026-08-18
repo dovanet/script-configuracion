@@ -8,7 +8,6 @@ fi
 
 # Configuración de variables
 IMAGE_URL="https://drive.google.com/uc?export=download&id=1Khfg0Ow3PLQ6hjyel32IzsEMZeZ6ZUiM"
-GAJIM_SERVER="10.2.70.36"
 OWNCLOUD_SERVER="10.2.70.97:1030"
 TELEFONIA_SERVER="143.0.66.222"
 
@@ -91,12 +90,10 @@ EOF
         echo "  ✅ Chromium - agregado"
     fi
 
-    # --- Gajim ---
-    if which gajim >/dev/null 2>&1; then
-        local desktop_path="$local_apps_dir/gajim.desktop"
-        crear_desktop_si_no_existe "$desktop_path" "Gajim" "gajim" "gajim"
-        dock_apps+=("'gajim.desktop'")
-        echo "  ✅ Gajim - agregado"
+    # --- Brave ---
+    if which brave-browser >/dev/null 2>&1; then
+        dock_apps+=("'brave-browser.desktop'")
+        echo "  ✅ Brave - agregado"
     fi
 
     # --- Linphone (AppImage o instalado) ---
@@ -109,6 +106,14 @@ EOF
         crear_desktop_si_no_existe "$desktop_path" "Linphone" "$linphone_appimage" "phone"
         dock_apps+=("'linphone.desktop'")
         echo "  ✅ Linphone (AppImage) - lanzador creado y agregado"
+    fi
+
+    # --- Winbox (vía Wine) ---
+    if [ -f "/home/$usuario/.winbox/winbox64.exe" ]; then
+        local desktop_path="$local_apps_dir/winbox.desktop"
+        crear_desktop_si_no_existe "$desktop_path" "Winbox" "wine /home/$usuario/.winbox/winbox64.exe" "wine"
+        dock_apps+=("'winbox.desktop'")
+        echo "  ✅ Winbox - agregado"
     fi
 
     # --- OwnCloud ---
@@ -200,21 +205,21 @@ instalar_clima_tucuman() {
 
 
 
-# Función para configurar zona horaria de Argentina
+# Función para configurar zona horaria de Tucumán, Argentina
 configurar_zona_horaria() {
-    echo "Configurando zona horaria de Argentina..."
-    
-    # Configurar timezone a America/Argentina/Buenos_Aires
-    timedatectl set-timezone America/Argentina/Buenos_Aires
-    
+    echo "Configurando zona horaria de Tucumán, Argentina..."
+
+    # Configurar timezone a America/Argentina/Tucuman
+    timedatectl set-timezone America/Argentina/Tucuman
+
     # Verificar la configuración
     current_timezone=$(timedatectl show --property=Timezone --value)
-    if [ "$current_timezone" = "America/Argentina/Buenos_Aires" ]; then
-        echo "✓ Zona horaria configurada: Argentina (Buenos Aires)"
+    if [ "$current_timezone" = "America/Argentina/Tucuman" ]; then
+        echo "✓ Zona horaria configurada: Argentina (Tucumán)"
         echo "  Hora actual: $(date)"
     else
         echo "⚠ No se pudo configurar la zona horaria automáticamente"
-        echo "  Configurar manualmente: sudo timedatectl set-timezone America/Argentina/Buenos_Aires"
+        echo "  Configurar manualmente: sudo timedatectl set-timezone America/Argentina/Tucuman"
     fi
     
     # Configurar NTP para sincronización automática
@@ -241,6 +246,12 @@ configurar_gnome() {
     ejecutar_como_usuario "gsettings set org.gnome.mutter dynamic-workspaces false"
     ejecutar_como_usuario "gsettings set org.gnome.desktop.wm.preferences num-workspaces 1"
     ejecutar_como_usuario "gsettings set org.gnome.desktop.session idle-delay 300"
+
+    # Bloqueo de pantalla tras 5 minutos de inactividad
+    ejecutar_como_usuario "gsettings set org.gnome.desktop.screensaver lock-enabled true"
+    ejecutar_como_usuario "gsettings set org.gnome.desktop.screensaver lock-delay 0"
+    ejecutar_como_usuario "gsettings set org.gnome.desktop.screensaver idle-activation-enabled true"
+
     ejecutar_como_usuario "gsettings set org.gnome.desktop.interface gtk-theme 'Adwaita-dark'"
     ejecutar_como_usuario "gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'"
     ejecutar_como_usuario "gsettings set org.gnome.desktop.wm.preferences button-layout 'appmenu:minimize,maximize,close'"
@@ -335,18 +346,6 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOF
 
-    # 2. GAJIM - Mensajería
-    cat > "$AUTOSTART_DIR/gajim.desktop" << 'EOF'  
-[Desktop Entry]
-Type=Application
-Name=Gajim
-Comment=Cliente de mensajería
-Exec=gajim
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-
     # 3. OWNCLOUD - Sincronización de archivos
     cat > "$AUTOSTART_DIR/owncloud.desktop" << 'EOF'
 [Desktop Entry]
@@ -391,7 +390,6 @@ EOF
     
     echo "✓ Aplicaciones configuradas para inicio automático:"
     echo "  - RustDesk (Acceso remoto)"
-    echo "  - Gajim (Mensajería)" 
     echo "  - OwnCloud (Sincronización)"
     echo "  - Linphone (Telefonía IP)"
     echo "  - Thunderbird (Correo)"
@@ -478,6 +476,70 @@ Terminal=false
 Categories=System;TerminalEmulator;
 EOF
 
+    # Brave Browser
+    if which brave-browser >/dev/null 2>&1; then
+        cat > "$ESCRITORIO_DIR/Brave.desktop" << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Brave
+Comment=Navegador web Brave
+Exec=brave-browser
+Icon=brave-browser
+Terminal=false
+Categories=Network;WebBrowser;
+EOF
+        echo "  ✅ Brave - acceso directo creado"
+    fi
+
+    # Winbox (vía Wine)
+    if [ -f "/home/$usuario/.winbox/winbox64.exe" ]; then
+        cat > "$ESCRITORIO_DIR/Winbox.desktop" << EOF
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Winbox
+Comment=Administración MikroTik
+Exec=wine "/home/$usuario/.winbox/winbox64.exe"
+Icon=wine
+Terminal=false
+Categories=Network;
+EOF
+        echo "  ✅ Winbox - acceso directo creado"
+    fi
+
+    # Google Earth
+    if which google-earth-pro >/dev/null 2>&1; then
+        cat > "$ESCRITORIO_DIR/GoogleEarth.desktop" << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Google Earth
+Comment=Explorador geográfico
+Exec=google-earth-pro
+Icon=google-earth-pro
+Terminal=false
+Categories=Education;Geography;
+EOF
+        echo "  ✅ Google Earth - acceso directo creado"
+    fi
+
+    # LibreOffice
+    if which libreoffice >/dev/null 2>&1; then
+        cat > "$ESCRITORIO_DIR/LibreOffice.desktop" << 'EOF'
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=LibreOffice
+Comment=Suite ofimática
+Exec=libreoffice
+Icon=libreoffice-startcenter
+Terminal=false
+Categories=Office;
+EOF
+        echo "  ✅ LibreOffice - acceso directo creado"
+    fi
+
     # Dar permisos
     chmod +x "$ESCRITORIO_DIR/"*.desktop
     chown $usuario:$usuario "$ESCRITORIO_DIR/"*.desktop
@@ -522,7 +584,7 @@ verificar_seguridad() {
     
     # Verificar apagado automático
     if grep -q "apagado-automatico" /etc/crontab 2>/dev/null; then
-        echo "✅ Apagado automático 19:00 - PROGRAMADO"
+        echo "✅ Apagado automático 19:30 - PROGRAMADO"
         grep "apagado-automatico" /etc/crontab
     else
         echo "❌ Apagado automático - NO CONFIGURADO"
@@ -723,14 +785,7 @@ verificar_instalacion() {
         echo "❌ OwnCloud - NO INSTALADO"
     fi
     
-    # Gajim
-    if which gajim >/dev/null 2>&1; then
-        echo "✅ Gajim - INSTALADO"
-    else
-        echo "❌ Gajim - NO INSTALADO"
-    fi
-    
-    # Thunderbird
+# Thunderbird
     if which thunderbird >/dev/null 2>&1; then
         echo "✅ Thunderbird - INSTALADO"
     else
@@ -749,6 +804,20 @@ verificar_instalacion() {
         echo "✅ Google Earth - INSTALADO"
     else
         echo "❌ Google Earth - NO INSTALADO"
+    fi
+
+    # Brave
+    if which brave-browser >/dev/null 2>&1; then
+        echo "✅ Brave - INSTALADO"
+    else
+        echo "❌ Brave - NO INSTALADO"
+    fi
+
+    # Winbox
+    if [ -f "/home/$(logname)/.winbox/winbox64.exe" ]; then
+        echo "✅ Winbox - INSTALADO"
+    else
+        echo "❌ Winbox - NO INSTALADO"
     fi
     
     # Verificar servicios
@@ -904,11 +973,6 @@ else
     echo "⚠ OwnCloud no disponible en repositorios"
 fi
 
-# 7. Gajim
-echo "Instalando Gajim..."
-apt install -y gajim
-check_success "Gajim"
-
 # 8. Thunderbird
 echo "Instalando Thunderbird..."
 apt install -y thunderbird thunderbird-l10n-es-es
@@ -970,6 +1034,27 @@ echo "Instalando sistema de impresión..."
 apt install -y cups system-config-printer
 check_success "Sistema de impresión"
 
+# 13. Brave Browser
+echo "Instalando Brave Browser..."
+apt install -y curl
+curl -fsS https://dl.brave.com/install.sh | sh
+check_success "Brave Browser"
+
+# 14. Winbox (vía Wine, no tiene versión nativa para Linux)
+echo "Instalando Winbox..."
+WINBOX_USUARIO=$(logname)
+WINBOX_DIR="/home/$WINBOX_USUARIO/.winbox"
+mkdir -p "$WINBOX_DIR"
+if [ ! -f "$WINBOX_DIR/winbox64.exe" ]; then
+    wget -q -O "$WINBOX_DIR/winbox64.exe" "https://mt.lv/winbox64"
+fi
+if [ -f "$WINBOX_DIR/winbox64.exe" ]; then
+    chown -R $WINBOX_USUARIO:$WINBOX_USUARIO "$WINBOX_DIR"
+    echo "✓ Winbox descargado (se ejecuta con Wine)"
+else
+    echo "⚠ No se pudo descargar Winbox"
+fi
+
 # CONFIGURACIONES DE SEGURIDAD
 
 # USBGuard
@@ -980,7 +1065,7 @@ echo "Bloqueando /etc/hosts..."
 chattr +i /etc/hosts 2>/dev/null && echo "✓ /etc/hosts bloqueado" || echo "⚠ No se pudo bloquear /etc/hosts"
 
 # CONFIGURACIÓN REAL DE APAGADO AUTOMÁTICO
-echo "⏰ CONFIGURANDO APAGADO AUTOMÁTICO 19:00..."
+echo "⏰ CONFIGURANDO APAGADO AUTOMÁTICO 19:30 (Tucumán/Argentina)..."
 
 # Crear script de apagado REAL
 cat > /usr/local/bin/apagado-automatico.sh << 'EOF'
@@ -989,7 +1074,7 @@ cat > /usr/local/bin/apagado-automatico.sh << 'EOF'
 logger "Apagado automático programado ejecutándose - Sistema se apagará en 5 minutos"
 
 # Notificar a usuarios conectados
-wall "⚠️  ATENCIÓN: El sistema se apagará en 5 minutos (19:00). Guarde su trabajo."
+wall "⚠️  ATENCIÓN: El sistema se apagará en 5 minutos (19:30). Guarde su trabajo."
 
 # Esperar 5 minutos y luego apagar
 sleep 300
@@ -1000,8 +1085,8 @@ EOF
 
 chmod +x /usr/local/bin/apagado-automatico.sh
 
-# Configurar cron para ejecutar diariamente a las 18:55 (para apagar a las 19:00)
-echo "55 18 * * * root /usr/local/bin/apagado-automatico.sh" >> /etc/crontab
+# Configurar cron para ejecutar diariamente a las 19:25 (para apagar a las 19:30, hora de Tucumán)
+echo "25 19 * * * root /usr/local/bin/apagado-automatico.sh" >> /etc/crontab
 
 # También crear un apagado de emergencia más temprano para pruebas
 cat > /usr/local/bin/apagado-prueba.sh << 'EOF'
@@ -1014,7 +1099,7 @@ EOF
 
 chmod +x /usr/local/bin/apagado-prueba.sh
 
-echo "✓ Apagado automático configurado: Diario a las 19:00"
+echo "✓ Apagado automático configurado: Diario a las 19:30 (Tucumán/Argentina)"
 echo "✓ Script de prueba creado: /usr/local/bin/apagado-prueba.sh"
 
 # CONFIGURACIONES GNOME (corregidas)
@@ -1059,8 +1144,6 @@ verificar_instalacion
 
 # VERIFICAR SEGURIDAD
 verificar_seguridad
-
-configure_autostart_apps
 
 # LIMPIEZA FINAL
 echo "Limpiando sistema..."
