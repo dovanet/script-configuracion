@@ -10,6 +10,8 @@ fi
 IMAGE_URL="https://drive.google.com/uc?export=download&id=1Khfg0Ow3PLQ6hjyel32IzsEMZeZ6ZUiM"
 OWNCLOUD_SERVER="10.2.70.97:1030"
 TELEFONIA_SERVER="143.0.66.222"
+IMPRESORA_IP="10.126.68.24"
+IMPRESORA_NOMBRE="HP_SmartTank_580"
 
 # Función mejorada con manejo de errores
 check_success() {
@@ -289,6 +291,54 @@ configurar_gnome() {
     
     echo "✓ Dock configurado en la parte inferior"
     echo "Las ventanas minimizadas se mostrarán en la barra inferior"
+}
+
+# Función para instalar drivers HP y configurar la impresora en red (WiFi) vía IP
+configurar_impresora_hp() {
+    echo ""
+    echo "🖨️  CONFIGURANDO IMPRESORA HP SMART TANK 580 ($IMPRESORA_IP)..."
+
+    # 1. Instalar CUPS (por si no está) y drivers/herramientas HP
+    apt install -y cups cups-client printer-driver-hpcups printer-driver-hpijs hplip
+
+    # Asegurar que CUPS está corriendo
+    systemctl enable cups >/dev/null 2>&1
+    systemctl start cups >/dev/null 2>&1
+
+    # 2. Verificar que la impresora responde en la red antes de configurarla
+    if ! ping -c 2 -W 2 "$IMPRESORA_IP" >/dev/null 2>&1; then
+        echo "⚠ No se pudo hacer ping a la impresora en $IMPRESORA_IP. Verificá que esté encendida y conectada al WiFi."
+        echo "  Se intentará configurar de todas formas por si el ICMP está bloqueado."
+    fi
+
+    # 3. Eliminar cola previa con el mismo nombre para evitar duplicados en reejecuciones
+    lpadmin -x "$IMPRESORA_NOMBRE" 2>/dev/null
+
+    # 4. Agregar la impresora vía IPP Everywhere (driverless), método moderno recomendado por HP para impresión en red
+    lpadmin -p "$IMPRESORA_NOMBRE" -E -v "ipp://$IMPRESORA_IP/ipp/print" -m everywhere -L "Oficina"
+
+    if [ $? -eq 0 ]; then
+        echo "✓ Impresora agregada vía IPP Everywhere (driverless)"
+    else
+        echo "⚠ Falló IPP Everywhere, reintentando vía socket JetDirect con driver HPLIP..."
+        lpadmin -p "$IMPRESORA_NOMBRE" -E -v "socket://$IMPRESORA_IP:9100" -m drv:///hpcups.drv/hp-smarttank_500-series.ppd -L "Oficina"
+        check_success "Impresora HP (fallback socket)"
+    fi
+
+    # 5. Habilitar la cola y aceptar trabajos
+    cupsenable "$IMPRESORA_NOMBRE" 2>/dev/null
+    cupsaccept "$IMPRESORA_NOMBRE" 2>/dev/null
+
+    # 6. Configurarla como impresora predeterminada
+    lpoptions -d "$IMPRESORA_NOMBRE" 2>/dev/null
+
+    # 7. Verificar que quedó dada de alta
+    if lpstat -p "$IMPRESORA_NOMBRE" >/dev/null 2>&1; then
+        echo "✓ Impresora '$IMPRESORA_NOMBRE' configurada y lista ($IMPRESORA_IP)"
+        lpstat -p "$IMPRESORA_NOMBRE"
+    else
+        echo "❌ La impresora no quedó configurada correctamente. Revisar manualmente con: system-config-printer"
+    fi
 }
 
 # Función para configurar servicios del sistema que inician automáticamente
@@ -841,6 +891,25 @@ verificar_instalacion() {
     else
         echo "❌ SSH Server - INACTIVO"
     fi
+
+    # NetworkManager
+    if systemctl is-active NetworkManager >/dev/null 2>&1; then
+        echo "✅ NetworkManager - ACTIVO"
+    else
+        echo "❌ NetworkManager - INACTIVO"
+    fi
+
+    # WiFi (interfaz inalámbrica detectada y no bloqueada)
+    if command -v nmcli >/dev/null 2>&1 && nmcli radio wifi >/dev/null 2>&1; then
+        wifi_estado=$(nmcli radio wifi 2>/dev/null)
+        if [ "$wifi_estado" = "enabled" ]; then
+            echo "✅ WiFi - HABILITADO"
+        else
+            echo "❌ WiFi - DESHABILITADO (revisar rfkill / hardware)"
+        fi
+    else
+        echo "⚠ WiFi - No se pudo verificar (nmcli no disponible o sin adaptador detectado)"
+    fi
     
     # CUPS
     if systemctl is-active cups >/dev/null 2>&1; then
@@ -848,8 +917,15 @@ verificar_instalacion() {
     else
         echo "❌ CUPS (Impresión) - INACTIVO"
     fi
-    
-    
+
+    # Impresora HP Smart Tank 580
+    if lpstat -p "$IMPRESORA_NOMBRE" >/dev/null 2>&1; then
+        echo "✅ Impresora HP Smart Tank 580 ($IMPRESORA_IP) - CONFIGURADA"
+    else
+        echo "❌ Impresora HP Smart Tank 580 - NO CONFIGURADA"
+    fi
+
+
     # Verificar configuraciones de seguridad
     echo ""
     echo "🛡️ CONFIGURACIONES DE SEGURIDAD:"
@@ -934,6 +1010,22 @@ verificar_instalacion() {
 echo "Habilitando repositorios contrib y non-free..."
 sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list
 apt update -y
+
+# CONFIGURAR WIFI: firmware del chip inalámbrico y herramientas de conexión
+# (muchas placas WiFi -Intel/Realtek/Broadcom- requieren firmware no-libre para funcionar)
+echo "📶 Instalando herramientas de conexión WiFi..."
+apt install -y wireless-tools wpasupplicant network-manager rfkill
+check_success "Herramientas WiFi"
+
+echo "📶 Instalando firmware WiFi (Intel/Realtek/Broadcom/genérico)..."
+for pkg in firmware-iwlwifi firmware-realtek firmware-brcm80211 firmware-misc-nonfree firmware-linux; do
+    apt install -y "$pkg" 2>/dev/null && echo "  ✅ $pkg instalado" || echo "  ⚠ $pkg no disponible/no aplicable en este equipo"
+done
+
+# Desbloquear WiFi por si está bloqueado por hardware/software (rfkill)
+rfkill unblock wifi 2>/dev/null
+rfkill unblock all 2>/dev/null
+echo "✓ WiFi desbloqueado (rfkill)"
 
 # INSTALAR APLICACIONES CON MANEJO DE ERRORES
 
@@ -1194,6 +1286,7 @@ DEBIAN_FRONTEND=noninteractive apt upgrade -y -o Dpkg::Options::="--force-confol
 
 configurar_autostart_aplicaciones
 configurar_servicios_sistema
+configurar_impresora_hp
 
 # VERIFICACIÓN FINAL
 verificar_instalacion
