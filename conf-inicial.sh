@@ -8,7 +8,6 @@ fi
 
 # Configuración de variables
 IMAGE_URL="https://drive.google.com/uc?export=download&id=1Khfg0Ow3PLQ6hjyel32IzsEMZeZ6ZUiM"
-OWNCLOUD_SERVER="10.2.70.97:1030"
 TELEFONIA_SERVER="143.0.66.222"
 IMPRESORA_IP="10.126.68.24"
 IMPRESORA_NOMBRE="HP_SmartTank_580"
@@ -116,12 +115,6 @@ EOF
         crear_desktop_si_no_existe "$desktop_path" "Winbox" "/home/$usuario/.winbox/WinBox" "network-workgroup"
         dock_apps+=("'winbox.desktop'")
         echo "  ✅ Winbox - agregado"
-    fi
-
-    # --- OwnCloud ---
-    if which owncloud >/dev/null 2>&1; then
-        dock_apps+=("'owncloud.desktop'")
-        echo "  ✅ OwnCloud - agregado"
     fi
 
     # --- Thunderbird ---
@@ -402,18 +395,6 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOF
 
-    # 3. OWNCLOUD - Sincronización de archivos
-    cat > "$AUTOSTART_DIR/owncloud.desktop" << 'EOF'
-[Desktop Entry]
-Type=Application
-Name=OwnCloud
-Comment=Sincronización de archivos
-Exec=owncloud
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-EOF
-
     # 4. LINPHONE - Telefonía IP
     LINPHONE_FILE="/home/$usuario/Descargas/Linphone-6.0.1-CallEdition-x86_64.AppImage"
     cat > "$AUTOSTART_DIR/linphone.desktop" << EOF
@@ -446,7 +427,6 @@ EOF
     
     echo "✓ Aplicaciones configuradas para inicio automático:"
     echo "  - RustDesk (Acceso remoto)"
-    echo "  - OwnCloud (Sincronización)"
     echo "  - Linphone (Telefonía IP)"
     echo "  - Thunderbird (Correo)"
 }
@@ -839,12 +819,6 @@ verificar_instalacion() {
         echo "❌ LibreOffice - NO INSTALADO"
     fi
     
-    # OwnCloud
-    if which owncloud >/dev/null 2>&1; then
-        echo "✅ OwnCloud - INSTALADO"
-    else
-        echo "❌ OwnCloud - NO INSTALADO"
-    fi
     
 # Thunderbird
     if which thunderbird >/dev/null 2>&1; then
@@ -1089,14 +1063,6 @@ fi
 echo "Instalando LibreOffice..."
 apt install -y libreoffice libreoffice-l10n-es
 check_success "LibreOffice"
-
-# 6. OwnCloud Desktop Client
-echo "Instalando OwnCloud Desktop..."
-if apt install -y owncloud-client 2>/dev/null; then
-    echo "✓ OwnCloud instalado"
-else
-    echo "⚠ OwnCloud no disponible en repositorios"
-fi
 
 # 8. Thunderbird
 echo "Instalando Thunderbird..."
