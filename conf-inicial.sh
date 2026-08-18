@@ -111,7 +111,7 @@ EOF
     # --- Winbox (vía Wine) ---
     if [ -f "/home/$usuario/.winbox/winbox64.exe" ]; then
         local desktop_path="$local_apps_dir/winbox.desktop"
-        crear_desktop_si_no_existe "$desktop_path" "Winbox" "wine /home/$usuario/.winbox/winbox64.exe" "wine"
+        crear_desktop_si_no_existe "$desktop_path" "Winbox" "sh -c \"wine64 /home/$usuario/.winbox/winbox64.exe 2>/dev/null || wine /home/$usuario/.winbox/winbox64.exe\"" "wine"
         dock_apps+=("'winbox.desktop'")
         echo "  ✅ Winbox - agregado"
     fi
@@ -506,7 +506,7 @@ Version=1.0
 Type=Application
 Name=Winbox
 Comment=Administración MikroTik
-Exec=wine "/home/$usuario/.winbox/winbox64.exe"
+Exec=sh -c "wine64 /home/$usuario/.winbox/winbox64.exe 2>/dev/null || wine /home/$usuario/.winbox/winbox64.exe"
 Icon=wine
 Terminal=false
 Categories=Network;
@@ -950,7 +950,14 @@ check_success "Remmina"
 
 # 3. Wine y Winetricks
 echo "Instalando Wine..."
+# Wine necesita arquitectura i386 habilitada (paquete wine depende de wine32)
+dpkg --add-architecture i386
+apt update -y
 apt install -y wine winetricks
+if [ $? -ne 0 ]; then
+    echo "⚠ Falló la instalación completa de Wine, reintentando solo con wine64..."
+    apt install -y wine64 winetricks
+fi
 check_success "Wine"
 
 # 4. RustDesk - Instalación mejorada
