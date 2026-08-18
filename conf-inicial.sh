@@ -240,7 +240,7 @@ configurar_gnome() {
     
     # SOLUCIÓN DEFINITIVA: Usar Dash to Dock configurado correctamente
     echo "Instalando y configurando Dash to Dock..."
-    apt install -y gnome-shell-extension-dash-to-dock
+    apt install -y gnome-shell-extension-dashtodock
     
     # Configuraciones básicas de GNOME
     ejecutar_como_usuario "gsettings set org.gnome.mutter dynamic-workspaces false"
@@ -556,9 +556,9 @@ EOF
         ejecutar_como_usuario "gio set '$f' metadata::trusted true" || true
     done
 
-    # 6. ACTIVAR EXTENSIÓN - MÉTODO DIRECTO
+    # 6. ACTIVAR EXTENSIÓN - MÉTODO DIRECTO (ding = Desktop Icons NG, reemplazo moderno de desktop-icons@csoriano)
     echo "Activando extensión de iconos..."
-    ejecutar_como_usuario "gnome-extensions enable desktop-icons@csoriano" || true
+    ejecutar_como_usuario "gnome-extensions enable ding@rastersoft.com" || true
     
     echo "✓ Escritorio configurado - Los iconos aparecerán tras reiniciar"
 }
@@ -577,7 +577,6 @@ forzar_iconos_escritorio() {
     ejecutar_como_usuario "gsettings set org.gnome.desktop.background show-desktop-icons true" || true
     
     # Forzar recarga de extensiones
-    ejecutar_como_usuario "gnome-extensions enable desktop-icons@csoriano" || true
     ejecutar_como_usuario "gnome-extensions enable ding@rastersoft.com" || true
     
     # Configuración adicional para Nautilus
@@ -737,11 +736,11 @@ verificar_instalacion() {
     echo ""
     echo "🌍 CONFIGURACIÓN DE ZONA HORARIA:"
     current_timezone=$(timedatectl show --property=Timezone --value)
-    if [ "$current_timezone" = "America/Argentina/Buenos_Aires" ]; then
-        echo "✅ Zona horaria: Argentina (Buenos Aires)"
+    if [ "$current_timezone" = "America/Argentina/Tucuman" ]; then
+        echo "✅ Zona horaria: Argentina (Tucumán)"
         echo "   Hora actual: $(date)"
     else
-        echo "❌ Zona horaria: $current_timezone (debería ser America/Argentina/Buenos_Aires)"
+        echo "❌ Zona horaria: $current_timezone (debería ser America/Argentina/Tucuman)"
     fi
     
     # Verificar aplicaciones instaladas
@@ -953,12 +952,22 @@ echo "Instalando Wine..."
 # Wine necesita arquitectura i386 habilitada (paquete wine depende de wine32)
 dpkg --add-architecture i386
 apt update -y
-apt install -y wine winetricks
+apt install -y wine
 if [ $? -ne 0 ]; then
     echo "⚠ Falló la instalación completa de Wine, reintentando solo con wine64..."
-    apt install -y wine64 winetricks
+    apt install -y wine64
 fi
 check_success "Wine"
+
+# Winetricks ya no está empaquetado en los repos de Debian: se instala el script oficial upstream
+echo "Instalando Winetricks..."
+wget -q -O /usr/local/bin/winetricks "https://raw.githubusercontent.com/Winetricks/winetricks/master/src/winetricks"
+if [ -f /usr/local/bin/winetricks ]; then
+    chmod +x /usr/local/bin/winetricks
+    check_success "Winetricks"
+else
+    echo "⚠ No se pudo descargar Winetricks"
+fi
 
 # 4. RustDesk - Instalación mejorada
 echo "Instalando RustDesk..."
