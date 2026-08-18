@@ -110,10 +110,10 @@ EOF
         echo "  ✅ Linphone (AppImage) - lanzador creado y agregado"
     fi
 
-    # --- Winbox (vía Wine) ---
-    if [ -f "/home/$usuario/.winbox/winbox64.exe" ]; then
+    # --- Winbox (nativo Linux) ---
+    if [ -x "/home/$usuario/.winbox/WinBox" ]; then
         local desktop_path="$local_apps_dir/winbox.desktop"
-        crear_desktop_si_no_existe "$desktop_path" "Winbox" "sh -c \"wine64 /home/$usuario/.winbox/winbox64.exe 2>/dev/null || wine /home/$usuario/.winbox/winbox64.exe\"" "wine"
+        crear_desktop_si_no_existe "$desktop_path" "Winbox" "/home/$usuario/.winbox/WinBox" "network-workgroup"
         dock_apps+=("'winbox.desktop'")
         echo "  ✅ Winbox - agregado"
     fi
@@ -548,16 +548,16 @@ EOF
         echo "  ✅ Brave - acceso directo creado"
     fi
 
-    # Winbox (vía Wine)
-    if [ -f "/home/$usuario/.winbox/winbox64.exe" ]; then
+    # Winbox (nativo Linux)
+    if [ -x "/home/$usuario/.winbox/WinBox" ]; then
         cat > "$ESCRITORIO_DIR/Winbox.desktop" << EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
 Name=Winbox
 Comment=Administración MikroTik
-Exec=sh -c "wine64 /home/$usuario/.winbox/winbox64.exe 2>/dev/null || wine /home/$usuario/.winbox/winbox64.exe"
-Icon=wine
+Exec=/home/$usuario/.winbox/WinBox
+Icon=network-workgroup
 Terminal=false
 Categories=Network;
 EOF
@@ -875,7 +875,7 @@ verificar_instalacion() {
     fi
 
     # Winbox
-    if [ -f "/home/$(logname)/.winbox/winbox64.exe" ]; then
+    if [ -x "/home/$(logname)/.winbox/WinBox" ]; then
         echo "✅ Winbox - INSTALADO"
     else
         echo "❌ Winbox - NO INSTALADO"
@@ -1181,41 +1181,32 @@ else
     fi
 fi
 
-# 14. Winbox (vía Wine, no tiene versión nativa para Linux)
+# 14. Winbox (versión nativa de Linux, sin necesidad de Wine)
 echo "Instalando Winbox..."
 WINBOX_USUARIO=$(logname)
 WINBOX_DIR="/home/$WINBOX_USUARIO/.winbox"
 mkdir -p "$WINBOX_DIR"
+apt install -y unzip
 
-# Si el archivo ya existe pero no es un .exe válido (descarga rota de una corrida anterior), lo borramos
-if [ -f "$WINBOX_DIR/winbox64.exe" ] && ! file "$WINBOX_DIR/winbox64.exe" | grep -q "PE32"; then
-    echo "⚠ El winbox64.exe existente no es un ejecutable válido, se vuelve a descargar..."
-    rm -f "$WINBOX_DIR/winbox64.exe"
-fi
+WINBOX_ZIP_URL="https://download.mikrotik.com/routeros/winbox/4.3/WinBox_Linux.zip"
 
-if [ ! -f "$WINBOX_DIR/winbox64.exe" ]; then
-    # El acortador mt.lv a veces no sirve el binario directo sin cabeceras de navegador; usamos User-Agent explícito
-    wget -q --user-agent="Mozilla/5.0 (X11; Linux x86_64)" -O "$WINBOX_DIR/winbox64.exe" "https://mt.lv/winbox64"
+wget -q -O /tmp/winbox_linux.zip "$WINBOX_ZIP_URL"
+if [ -f /tmp/winbox_linux.zip ] && [ -s /tmp/winbox_linux.zip ]; then
+    unzip -o -q /tmp/winbox_linux.zip -d "$WINBOX_DIR"
+    rm -f /tmp/winbox_linux.zip
 
-    # Validar que lo descargado sea un ejecutable real (PE32), no una página HTML de error
-    if [ -f "$WINBOX_DIR/winbox64.exe" ] && ! file "$WINBOX_DIR/winbox64.exe" | grep -q "PE32"; then
-        echo "⚠ La descarga desde mt.lv no es válida, buscando el link directo en mikrotik.com..."
-        rm -f "$WINBOX_DIR/winbox64.exe"
-        WINBOX_REAL_URL=$(wget -qO- --user-agent="Mozilla/5.0 (X11; Linux x86_64)" "https://mikrotik.com/download" | grep -oE 'https://download\.mikrotik\.com/routeros/winbox/[^"]*winbox64\.exe' | head -n 1)
-        if [ -n "$WINBOX_REAL_URL" ]; then
-            wget -q --user-agent="Mozilla/5.0 (X11; Linux x86_64)" -O "$WINBOX_DIR/winbox64.exe" "$WINBOX_REAL_URL"
-        fi
+    # El binario extraído puede llamarse "WinBox" o "winbox" según la versión del zip
+    WINBOX_BIN=$(find "$WINBOX_DIR" -maxdepth 1 -iname "winbox*" -type f ! -name "*.zip" | head -n 1)
+
+    if [ -n "$WINBOX_BIN" ]; then
+        chmod +x "$WINBOX_BIN"
+        # Guardamos la ruta real para que los lanzadores del dock/escritorio la usen
+        ln -sf "$WINBOX_BIN" "$WINBOX_DIR/WinBox"
+        chown -R $WINBOX_USUARIO:$WINBOX_USUARIO "$WINBOX_DIR"
+        echo "✓ Winbox instalado (versión nativa Linux): $WINBOX_BIN"
+    else
+        echo "⚠ El ZIP de Winbox se descargó pero no se encontró el ejecutable dentro"
     fi
-fi
-
-if [ -f "$WINBOX_DIR/winbox64.exe" ] && file "$WINBOX_DIR/winbox64.exe" | grep -q "PE32"; then
-    chown -R $WINBOX_USUARIO:$WINBOX_USUARIO "$WINBOX_DIR"
-    echo "✓ Winbox descargado (se ejecuta con Wine)"
-
-    # Inicializar el prefix de Wine para que no quede colgado configurando en el primer uso
-    echo "Inicializando entorno Wine para el usuario..."
-    sudo -u "$WINBOX_USUARIO" WINEARCH=win64 WINEPREFIX="/home/$WINBOX_USUARIO/.wine" wineboot --init >/dev/null 2>&1
-    echo "✓ Entorno Wine inicializado"
 else
     echo "⚠ No se pudo descargar Winbox"
 fi
