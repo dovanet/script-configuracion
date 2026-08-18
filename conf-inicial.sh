@@ -954,8 +954,13 @@ dpkg --add-architecture i386
 apt update -y
 apt install -y wine
 if [ $? -ne 0 ]; then
-    echo "⚠ Falló la instalación completa de Wine, reintentando solo con wine64..."
-    apt install -y wine64
+    echo "⚠ Falló la instalación de Wine (posible desincronización del mirror), reintentando..."
+    apt update -y
+    apt install -y --fix-missing wine
+fi
+if [ $? -ne 0 ]; then
+    echo "⚠ Falló de nuevo, reintentando solo con wine64..."
+    apt install -y --fix-missing wine64
 fi
 check_success "Wine"
 
@@ -1135,6 +1140,8 @@ EOF
 chmod +x /usr/local/bin/apagado-automatico.sh
 
 # Configurar cron para ejecutar diariamente a las 19:25 (para apagar a las 19:30, hora de Tucumán)
+# Eliminar entradas previas del cron (evita duplicados en reejecuciones del script)
+sed -i '/apagado-automatico\.sh/d' /etc/crontab
 echo "25 19 * * * root /usr/local/bin/apagado-automatico.sh" >> /etc/crontab
 
 # También crear un apagado de emergencia más temprano para pruebas
